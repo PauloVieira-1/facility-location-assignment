@@ -1,13 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Dec 17 08:36:34 2024
+from pulp import LpProblem, LpMaximize, LpMinimize, LpVariable, GLPK, lpSum
 
-@author: Rob Broekmeulen
-"""
-# Add to the import statement the functions you used
-from pulp import GLPK
 
-# Constants
 BIG_M = 100000
 
 def flp1(budget, coor_cust, coor_fac):
@@ -28,22 +22,31 @@ def flp1(budget, coor_cust, coor_fac):
     setups       : a list with the setup decision per facility
     """
 
-    # Define parameters
+
     nr_cust = len(coor_cust)
     nr_fac = len(coor_fac)
-    # YOUR CODE HERE
 
-    # Declare model
-    model = None    # TEMPORARY: replace with your model declaration
+    model = LpProblem("MinMaxDistance", LpMinimize)
 
-    # Add decision variables
-    # YOUR CODE HERE
+    ### Decision Variables ###
 
-    # Add the objective function
-    # YOUR CODE HERE
+    d = [[0]*nr_fac for _ in range(nr_cust)] # represents the distance between each customer and facility 
+    
+    for i in range(nr_cust):
+        for j in range(nr_fac): 
+            d[i][j] = ((coor_cust[i][0] - coor_fac[j][0])**2 + (coor_cust[i][1] - coor_fac[j][1])**2)**0.5
 
-    # Add the constraints to the model
-    # YOUR CODE HERE
+    x = {i : LpVariable(name = f"x1_{i}", cat="Binary") for i in range(nr_cust)} # represents decison to open facility for customer or not 
+
+    ### Model ###
+
+    model += lpSum(d[i][j] * x[i] for i in range(nr_cust) for j in range(nr_fac)) 
+
+
+    ### Constraints ###
+
+    model += lpSum(x[i] for i in range(nr_fac)) == budget
+    model += lpSum(x[i] - BIG_M) <= 0
 
     # Solve the model
     # Default return values = No solution found
@@ -60,7 +63,14 @@ def flp1(budget, coor_cust, coor_fac):
     # Retrieve the objective value
     obj_val = model.objective.value()
     # Retrieve the facilities that you decide to open
-    # YOUR CODE HERE
+
+    if model.status != 1:
+        return model.status
+    
+    obj_val = model.objective.value()
+
+    for i in range(nr_cust):
+        setups[i] = int(x[i].value())
 
     return obj_val, setups
 
