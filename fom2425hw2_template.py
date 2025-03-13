@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from pulp import LpProblem, LpMaximize, LpMinimize, LpVariable, GLPK, lpSum
 
-
 BIG_M = 100000
 
 def flp1(budget, coor_cust, coor_fac):
@@ -26,51 +25,53 @@ def flp1(budget, coor_cust, coor_fac):
     nr_cust = len(coor_cust)
     nr_fac = len(coor_fac)
 
-    model = LpProblem("MinMaxDistance", LpMinimize)
+    model = LpProblem("MM_FLP", LpMinimize)
 
     ### Decision Variables ###
+    x = {j: LpVariable(f"x_{j}", cat="Binary") for j in range(nr_fac)}
 
-    d = [[0]*nr_fac for _ in range(nr_cust)] # represents the distance between each customer and facility 
-    
-    for i in range(nr_cust):
-        for j in range(nr_fac): 
-            d[i][j] = ((coor_cust[i][0] - coor_fac[j][0])**2 + (coor_cust[i][1] - coor_fac[j][1])**2)**0.5
+    y = {(i, j): LpVariable(f"y_{i}_{j}", cat="Binary") for i in range(nr_cust) for j in range(nr_fac)}
 
-    x = {i : LpVariable(name = f"x1_{i}", cat="Binary") for i in range(nr_cust)} # represents decison to open facility for customer or not 
+    d = [[abs(coor_cust[i][0] - coor_fac[j][0]) + abs(coor_cust[i][1] - coor_fac[j][1]) for j in range(nr_fac)] for i in range(nr_cust)]
 
-    ### Model ###
+    D_max = LpVariable("D_max", lowBound=0)  
 
-    model += lpSum(d[i][j] * x[i] for i in range(nr_cust) for j in range(nr_fac)) 
-
+    model += D_max  
 
     ### Constraints ###
 
-    model += lpSum(x[i] for i in range(nr_fac)) == budget
-    model += lpSum(x[i] - BIG_M) <= 0
+    for i in range(nr_cust):
+        for j in range(nr_fac):
+            model += d[i][j] * y[i, j] <= D_max 
+            
+    for i in range(nr_cust):
+        model += lpSum(y[i, j] for j in range(nr_fac)) == 1
 
-    # Solve the model
+    for i in range(nr_cust):
+        for j in range(nr_fac):
+            model += y[i, j] <= x[j]
+    
+    model += lpSum(x[j] for j in range(nr_fac)) == budget
+
+    for i in range(nr_cust):
+        model += lpSum(d[i][j] * y[i, j] for j in range(nr_fac)) <= D_max
+
+
     # Default return values = No solution found
     obj_val = 0
     setups = [0]*nr_fac
     if model is None:
-        # You did not decide to develop a optimization model
         return obj_val, setups
-    # Solve the constructed model with GLPK within 10 seconds
     model.solve(GLPK(msg=False, options=['--tmlim', '10']))
     if model.status != 1:
-        # Model did not result in an optimal solution
         return model.status, setups
-    # Retrieve the objective value
     obj_val = model.objective.value()
-    # Retrieve the facilities that you decide to open
 
     if model.status != 1:
         return model.status
     
     obj_val = model.objective.value()
-
-    for i in range(nr_cust):
-        setups[i] = int(x[i].value())
+    setups = [int(x[j].value()) for j in range(nr_fac)]
 
     return obj_val, setups
 
@@ -93,42 +94,64 @@ def flp2(cost_f, subs_fixed, subs_access, coor_cust, coor_fac):
     obj_val      : the objective value after optimization
     setups       : a list with the setup decision per facility
     """
-
-    # Define parameters
+    
     nr_cust = len(coor_cust)
     nr_fac = len(coor_fac)
-    # YOUR CODE HERE
 
-    # Declare model
-    model = None    # TEMPORARY: replace with your model declaration
+    model = LpProblem("PM_FLP", LpMaximize)
 
-    # Add decision variables
-    # YOUR CODE HERE
+    ### Decision Variables ###
 
-    # Add the objective function
-    # YOUR CODE HERE
+    x = {j: LpVariable(f"x_{j}", cat="Binary") for j in range(nr_fac)}
+    y = {(i, j): LpVariable(f"y_{i}_{j}", cat="Binary") for i in range(nr_cust) for j in range(nr_fac)}
 
-    # Add the constraints to the model
-    # YOUR CODE HERE
+    d = [[abs(coor_cust[i][0] - coor_fac[j][0]) + abs(coor_cust[i][1] - coor_fac[j][1]) for j in range(nr_fac)] for i in range(nr_cust)]
 
-    # Solve the model
-    # Default return values = No solution found
+    model += (
+        lpSum((subs_fixed - subs_access * d[i][j]) * y[i, j] for i in range(nr_cust) for j in range(nr_fac))
+        - lpSum(cost_f * x[j] for j in range(nr_fac))
+    )
+
+    ### Constraints ###
+
+    for j in range(nr_fac):
+        model += lpSum((subs_fixed - subs_access * d[i][j]) * y[i, j] for i in range(nr_cust)) - cost_f * x[j] >= 0
+
+    for i in range(nr_cust):
+        model += lpSum(y[i, j] for j in range(nr_fac)) <= 1
+
+    for i in range(nr_cust):
+        for j in range(nr_fac):
+            model += y[i, j] <= x[j]
+
+
+    # Default return values if no solution is found
     obj_val = 0
     setups = [0]*nr_fac
+
     if model is None:
-        # You did not decide to develop a optimization model
         return obj_val, setups
-    # Solve the constructed model with GLPK within 10 seconds
+    
     model.solve(GLPK(msg=False, options=['--tmlim', '10']))
+
     if model.status != 1:
-        # Model did not result in an optimal solution
         return model.status, setups
-    # Retrieve the objective value
+    
     obj_val = model.objective.value()
-    # Retrieve for each facility the customers that you decide to offer a subscription
-    # YOUR CODE HERE
+
+    if model.status != 1:
+        return model.status
+
+    obj_val = model.objective.value()
+
+
+    for i in range(nr_cust):
+        for j in range(nr_fac):
+            if y[i, j].varValue is not None and int(y[i, j].varValue) == 1:
+                setups[j] += 1
 
     return obj_val, setups
+
 
 def flp3(cap_f, subs_fixed, subs_access, coor_cust, coor_fac):
     """Solving the profit maximizing capacitated facility location problem
@@ -151,42 +174,61 @@ def flp3(cap_f, subs_fixed, subs_access, coor_cust, coor_fac):
     setups       : a list with the setup decision per period
     """
 
-    # Define parameters
     nr_cust = len(coor_cust)
     nr_fac = len(coor_fac)
     horizon = nr_fac
-    # YOUR CODE HERE
 
-    # Declare model
-    model = None    # TEMPORARY: replace with your model declaration
+    model = LpProblem("PMT_CFLP", LpMaximize)
 
-    # Add decision variables
-    # YOUR CODE HERE
+    ### Decision Variables ###
 
-    # Add the objective function
-    # YOUR CODE HERE
+    x = {j: LpVariable(f"x_{j}", cat="Binary") for j in range(nr_fac)}
+    y = {(i, j): LpVariable(f"y_{i}_{j}", cat="Binary") for i in range(nr_cust) for j in range(nr_fac)}
+    z = {(i, j, k): LpVariable(f"z_{i}_{j}_{k}", cat="Binary") for i in range(nr_cust) for j in range(nr_fac) for k in range(horizon)}
 
-    # Add the constraints to the model
-    # YOUR CODE HERE
+    d = [[abs(coor_cust[i][0] - coor_fac[j][0]) + abs(coor_cust[i][1] - coor_fac[j][1]) for j in range(nr_fac)] for i in range(nr_cust)]
 
-    # Solve the model
-    # Default return values = No solution found
+    model += lpSum((subs_fixed - subs_access * d[i][j]) * z[i, j, k] * 1 for i in range(nr_cust) for j in range(nr_fac) for k in range(horizon))
+    
+    ### Constraints ###
+
+    for i in range(nr_cust):
+        model += lpSum(y[i, j] for j in range(nr_fac)) <= 1
+
+    for i in range(nr_cust):
+        for j in range(nr_fac):
+            model += y[i, j] <= x[j]
+
+    for j in range(nr_fac):
+        model += lpSum(z[i, j, k] for i in range(nr_cust) for k in range(horizon)) <= cap_f * x[j]
+
+    # Default return values if no solution is found
     obj_val = 0
-    setups = [-1]*horizon
+    setups = [0]*nr_fac
+
     if model is None:
-        # You did not decide to develop a optimization model
         return obj_val, setups
-    # Solve the constructed model with GLPK within 10 seconds
+    
     model.solve(GLPK(msg=False, options=['--tmlim', '10']))
+
     if model.status != 1:
-        # Model did not result in an optimal solution
         return model.status, setups
-    # Retrieve the objective value
+    
     obj_val = model.objective.value()
-    # Retrieve the sequence in which you open the facilities
-    # YOUR CODE HERE
+
+    if model.status != 1:
+        return model.status
+
+    obj_val = model.objective.value()
+
+
+    for i in range(nr_cust):
+        for j in range(nr_fac):
+            if y[i, j].varValue is not None and int(y[i, j].varValue) == 1:
+                setups[j] += 1
 
     return obj_val, setups
+
 
 if __name__ == '__main__':
     # Below you can experiment with your functions
