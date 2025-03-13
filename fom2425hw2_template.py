@@ -182,29 +182,33 @@ def flp3(cap_f, subs_fixed, subs_access, coor_cust, coor_fac):
 
     ### Decision Variables ###
 
-    x = {j: LpVariable(f"x_{j}", cat="Binary") for j in range(nr_fac)}
-    y = {(i, j): LpVariable(f"y_{i}_{j}", cat="Binary") for i in range(nr_cust) for j in range(nr_fac)}
-    z = {(i, j, k): LpVariable(f"z_{i}_{j}_{k}", cat="Binary") for i in range(nr_cust) for j in range(nr_fac) for k in range(horizon)}
+    facility_open = {j: LpVariable(f"x_{j}", cat="Binary") for j in range(nr_fac)}
+    customer_assigned = {(i, j, k): LpVariable(f"y_{i}_{j}_{k}", cat="Binary") for i in range(nr_cust) for j in range(nr_fac) for k in range(horizon)}
+    fraction_assigned = {(i, j, k): LpVariable(f"z_{i}_{j}_{k}", cat="Continuous", lowBound=0, upBound=1) for i in range(nr_cust) for j in range(nr_fac) for k in range(horizon)}
 
     d = [[abs(coor_cust[i][0] - coor_fac[j][0]) + abs(coor_cust[i][1] - coor_fac[j][1]) for j in range(nr_fac)] for i in range(nr_cust)]
 
-    model += lpSum((subs_fixed - subs_access * d[i][j]) * z[i, j, k] * 1 for i in range(nr_cust) for j in range(nr_fac) for k in range(horizon))
+    model += lpSum((subs_fixed - subs_access * d[i][j]) * fraction_assigned[i, j, k] for i in range(nr_cust) for j in range(nr_fac) for k in range(horizon))
     
     ### Constraints ###
 
+    # Ensure each customer is assigned to at most one facility per period
     for i in range(nr_cust):
-        model += lpSum(y[i, j] for j in range(nr_fac)) <= 1
+        model += lpSum(customer_assigned[i, j, k] for j in range(nr_fac) for k in range(horizon)) <= 1
 
+    # Ensure a customer is only assigned to an open facility
     for i in range(nr_cust):
         for j in range(nr_fac):
-            model += y[i, j] <= x[j]
+            for k in range(horizon):
+                model += customer_assigned[i, j, k] <= facility_open[j]
 
+    # Ensure the total assigned fraction does not exceed facility capacity when open
     for j in range(nr_fac):
-        model += lpSum(z[i, j, k] for i in range(nr_cust) for k in range(horizon)) <= cap_f * x[j]
+        model += lpSum(fraction_assigned[i, j, k] for i in range(nr_cust) for k in range(horizon)) <= cap_f * facility_open[j]
 
     # Default return values if no solution is found
     obj_val = 0
-    setups = [0]*nr_fac
+    setups = [0] * nr_fac
 
     if model is None:
         return obj_val, setups
@@ -222,10 +226,15 @@ def flp3(cap_f, subs_fixed, subs_access, coor_cust, coor_fac):
     obj_val = model.objective.value()
 
 
-    for i in range(nr_cust):
-        for j in range(nr_fac):
-            if y[i, j].varValue is not None and int(y[i, j].varValue) == 1:
-                setups[j] += 1
+    facility_open_period = {} 
+    
+    for j in range(nr_fac):
+        for k in range(horizon):
+            if facility_open[j].varValue is not None and int(facility_open[j].varValue) == 1:
+                if j not in facility_open_period:
+                    facility_open_period[j] = k
+                    setups[k] = j  
+                    break
 
     return obj_val, setups
 
