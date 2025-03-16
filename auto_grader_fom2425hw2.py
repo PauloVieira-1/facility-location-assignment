@@ -37,28 +37,28 @@ def unit_test(test_module, test_nr):
                          (20, 5), (25, 7), (14, 25), (20, 10), (15, 21),
                          (9, 21), (4, 16), (6, 18), (8, 24), (12, 15),
                          (5.5, 7), (2.5, 19), (11, 1), (22, 13), (17, 6)]
-            fac_data = [(12, 1), (3, 15), (20, 10), (2, 2)]
+            fac_data = [(12, 1), (3, 15), (19, 10), (2, 2)]
             obj_val, setups = test_module.flp1(2, cust_data, fac_data)
-            corr_setups = [1, 1, 0, 0]
-            corr_obj_val = 21
+            corr_setups = [0, 1, 1, 0]
+            corr_obj_val = 20
         if test_nr == 1:        # Given example
             cust_data = [(2, 3), (3, 6), (1, 11), (5, 4), (7, 1),
                          (20, 5), (25, 7), (14, 25), (20, 10), (15, 21),
                          (9, 21), (4, 16), (6, 18), (8, 24), (12, 15),
                          (5.5, 7), (2.5, 19), (11, 1), (22, 13), (17, 6)]
-            fac_data = [(12, 1), (3, 15), (20, 10), (2, 2)]
+            fac_data = [(12, 1), (3, 15), (19, 10), (2, 2)]
             obj_val, setups = test_module.flp2(150, 50, 3, cust_data, fac_data)
             corr_setups = [0, 11, 6, 0]
-            corr_obj_val = 130
+            corr_obj_val = 124
         if test_nr == 2:        # Given example
             cust_data = [(2, 3), (3, 6), (1, 11), (5, 4), (7, 1),
                          (20, 5), (25, 7), (14, 25), (20, 10), (15, 21),
                          (9, 21), (4, 16), (6, 18), (8, 24), (12, 15),
                          (5.5, 7), (2.5, 19), (11, 1), (22, 13), (17, 6)]
-            fac_data = [(12, 1), (3, 15), (20, 10), (2, 2)]
+            fac_data = [(12, 1), (3, 15), (19, 10), (2, 2)]
             obj_val, setups = test_module.flp3(5, 15, 2, cust_data, fac_data)
-            corr_setups = [2, 3, 1, 0]
-            corr_obj_val = 243
+            corr_setups = [3, 1, 2, 0]
+            corr_obj_val = 232
         if int(obj_val) == corr_obj_val:
             points += 0.5
         if setups == corr_setups:
