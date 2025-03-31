@@ -193,26 +193,21 @@ def flp3(cap_f, subs_fixed, subs_access, coor_cust, coor_fac):
     
     ### Constraints ###
 
-    # Ensure each customer is assigned to at most one facility per period
     for i in range(nr_cust):
         model += lpSum(customer_assigned[i, j, k] for j in range(nr_fac) for k in range(horizon)) <= 1
     
-    # Constraint 1: Open exactly one new facility per period
     for k in range(horizon):
         model += lpSum(facility_open[j, k] for j in range(nr_fac)) == 1
 
-    # Ensure a customer is only assigned to an open facility
     for i in range(nr_cust):
         for j in range(nr_fac):
             for k in range(horizon):
                 model += customer_assigned[i, j, k] <= facility_open[j, k]
 
-    # Ensure the total assigned fraction does not exceed facility capacity when open
     for j in range(nr_fac):
         for k in range(horizon):
             model += lpSum(fraction_assigned[i, j, k] for i in range(nr_cust)) <= cap_f * facility_open[j, k]
 
-    # Default return values if no solution is found
     obj_val = 0
     setups = [0] * nr_fac
 
